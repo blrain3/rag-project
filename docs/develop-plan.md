@@ -120,7 +120,7 @@ rag-project/
 
 验收：`uvicorn app.main:app --reload` 启动正常，Swagger（/docs）可访问。
 
-### Phase 2：PostgreSQL + pgvector（下一步）
+### Phase 2：PostgreSQL + pgvector ✅（2026-08-29 完成）
 
 | 项 | 内容 |
 |---|---|
@@ -129,21 +129,22 @@ rag-project/
 | 交付物 | `app/db/database.py`、`app/models/`、`alembic/`、首个 migration |
 | 验收 | `alembic upgrade head` 成功；psql 中 `\d document_chunks` 可见 `vector` 类型列；`/api/health` 的 database 字段变为真实连接状态 |
 
-表结构（初版）：
+表结构（实际落地，2026-08-29）：
 
 ```text
-documents            document_chunks
-──────────────       ──────────────────────
-id            PK     id            PK
-filename              document_id   FK → documents.id
-title                 chunk_index
-content              content
-metadata (JSONB)     embedding     vector(N)   -- N 由 Embedding 模型决定
-created_at           metadata (JSONB)
-updated_at           created_at
+documents                 document_chunks
+───────────────────       ────────────────────────────────
+id             UUID PK     id            UUID PK
+title          VARCHAR     document_id   UUID FK → documents.id (ON DELETE CASCADE)
+source_type    VARCHAR     chunk_index   INTEGER  (uq: document_id+chunk_index)
+source_path    TEXT        content       TEXT
+content_text   TEXT        token_count   INTEGER
+content_hash   VARCHAR(64) embedding     vector(1024)   -- bge-m3，见下
+created_at     TIMESTAMPTZ created_at    TIMESTAMPTZ
+updated_at     TIMESTAMPTZ
 ```
 
-> 注意：`vector(N)` 的维度必须与 Phase 5 实际选用的 Embedding 模型一致（bge-m3 为 1024 维），并在 metadata 中记录模型名，禁止随意换模型不换维度。
+> `vector(1024)` 对应 Phase 5 选型 BAAI/bge-m3 的输出维度（1024）。维度常量集中在 `app/models/document.py` 的 `EMBEDDING_DIM`，换模型必须连同迁移与全量重嵌入一起处理，禁止只改常量。
 
 ### Phase 3：文档处理（Markdown 优先）
 
